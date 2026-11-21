@@ -4,10 +4,7 @@ import { useState } from "react";
 import { VisirekaAppShell } from "@/components/visireka/app-shell";
 import { initialArticles, Article } from "@/lib/visireka-store";
 import {
-  FiBookOpen,
   FiClock,
-  FiTag,
-  FiArrowRight,
   FiCheckCircle,
 } from "react-icons/fi";
 
@@ -66,10 +63,10 @@ export default function EdukasiPage() {
             <div className="p-4 rounded-xl border border-border bg-muted/40 space-y-2 text-xs">
               <span className="font-bold text-foreground block">Klasifikasi Mutu SNI Kopi Biji:</span>
               <ul className="space-y-1 text-muted-foreground text-[11px]">
-                <li>• <strong>Mutu 1 (Grade 1)</strong>: Total nilai cacat $\le 11$</li>
-                <li>• <strong>Mutu 2 (Grade 2)</strong>: Total nilai cacat $12 - 25$</li>
-                <li>• <strong>Mutu 3 (Grade 3)</strong>: Total nilai cacat $26 - 44$</li>
-                <li>• <strong>Mutu 4 (Grade 4)</strong>: Total nilai cacat $45 - 80$</li>
+                <li>• <strong>Mutu 1 (Grade 1)</strong>: Total nilai cacat &le; 11</li>
+                <li>• <strong>Mutu 2 (Grade 2)</strong>: Total nilai cacat 12 – 25</li>
+                <li>• <strong>Mutu 3 (Grade 3)</strong>: Total nilai cacat 26 – 44</li>
+                <li>• <strong>Mutu 4 (Grade 4)</strong>: Total nilai cacat 45 – 80</li>
               </ul>
             </div>
           </div>
@@ -91,7 +88,7 @@ export default function EdukasiPage() {
                 </div>
 
                 <div className="p-4 rounded-xl bg-muted/30 border border-border/80 text-xs italic text-foreground/90 leading-relaxed">
-                  "{selectedArticle.summary}"
+                  &ldquo;{selectedArticle.summary}&rdquo;
                 </div>
 
                 <div className="text-xs sm:text-sm text-foreground/90 leading-relaxed space-y-3 pt-2">

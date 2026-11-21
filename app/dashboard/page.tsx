@@ -12,14 +12,16 @@ import {
 import {
   FiCamera,
   FiTrendingUp,
-  FiLayers,
   FiCheckCircle,
   FiAlertTriangle,
   FiMapPin,
   FiCalendar,
   FiArrowRight,
   FiActivity,
-  FiShield,
+  FiCpu,
+  FiPackage,
+  FiUsers,
+  FiClock,
 } from "react-icons/fi";
 
 export default function DashboardPage() {
@@ -28,263 +30,429 @@ export default function DashboardPage() {
   const [estimates] = useState(initialEstimates);
   const [events] = useState(initialEvents);
 
+  // Ambil inspeksi dan estimasi terbaru
+  const latestInspection = inspections[0];
+  const latestEstimate = estimates[0];
+  const currentFarm = farms[0];
+
   const totalArea = farms.reduce((acc, f) => acc + f.areaHectares, 0).toFixed(1);
   const totalTrees = farms.reduce((acc, f) => acc + f.treeCount, 0).toLocaleString();
   const totalPredictedYield = estimates.reduce((acc, e) => acc + e.predictedYieldKg, 0);
-  const totalSacks = estimates.reduce((acc, e) => acc + e.requiredSacks60kg, 0);
 
-  // Hitung distribusi Grade Mutu
-  const grade1Count = inspections.filter((i) => i.assignedGrade.includes("Grade 1")).length;
-  const grade1Percent = Math.round((grade1Count / inspections.length) * 100);
+  // Rincian CNN
+  const totalBeansChecked = inspections.reduce((acc, i) => acc + (i.totalObjectsCount || 20), 0);
+  const totalNormalBeans = inspections.reduce((acc, i) => acc + (i.normalObjectsCount || 18), 0);
+  const totalDefectBeans = inspections.reduce((acc, i) => acc + (i.defectObjectsCount || 2), 0);
+  const overallQualityPercent = Math.round((totalNormalBeans / totalBeansChecked) * 100);
 
   return (
     <VisirekaAppShell
-      title="Dashboard Eksekutif & Pemantauan Perkebunan"
-      subtitle="Monitoring kualitas pascapanen berbasis citra CNN dan proyeksi panen multivariat"
+      title="Dashboard Utama & Monitoring Cerdas"
+      subtitle="Ringkasan inspeksi kualitas citra CNN dan proyeksi estimasi panen kopi Arabika"
     >
       <div className="space-y-6">
-        {/* Banner Status Sistem Cerdas */}
-        <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-600/10 via-emerald-500/5 to-amber-600/10 border border-emerald-500/20 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-emerald-600 text-white shadow-md shadow-emerald-600/20">
-              <FiActivity className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-sm font-bold text-foreground">
-                Sistem VISIREKA Beroperasi Normal
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Inference Engine CNN (224x224 RGB) dan Regresi Linear OLS siap melayani analisis.
+        {/* User Greeting Banner (Matches Figma/Google Stitch) */}
+        <div className="relative overflow-hidden p-5 sm:p-7 rounded-3xl bg-gradient-to-br from-emerald-800 via-emerald-700 to-teal-900 text-white shadow-xl shadow-emerald-900/20">
+          {/* Subtle background decoration */}
+          <div className="absolute -right-10 -bottom-10 w-64 h-64 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="space-y-1.5">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-md text-[11px] font-semibold text-emerald-100">
+                <FiMapPin className="w-3.5 h-3.5" />
+                <span>{currentFarm.name} • {currentFarm.elevationMasl} mdpl</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-ping" />
+              </div>
+              <h1 className="text-xl sm:text-2xl lg:text-3xl font-black tracking-tight">
+                Halo, Rudi Hartono 👋
+              </h1>
+              <p className="text-xs sm:text-sm text-emerald-100/90 max-w-xl">
+                Sistem VISIREKA memantau 3 blok kebun Arabika aktif dengan mesin AI siap pakai untuk sortasi pascapanen dan estimasi logistik.
               </p>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/inspeksi"
-              className="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold shadow-sm transition flex items-center gap-1.5"
-            >
-              <FiCamera className="w-3.5 h-3.5" />
-              <span>Unggah Citra QC</span>
-            </Link>
-            <Link
-              href="/estimasi"
-              className="px-3.5 py-1.5 rounded-lg border border-border bg-card hover:bg-muted text-xs font-semibold transition flex items-center gap-1.5"
-            >
-              <FiTrendingUp className="w-3.5 h-3.5 text-amber-600" />
-              <span>Kalkulasi Panen</span>
-            </Link>
-          </div>
-        </div>
 
-        {/* Top 4 KPI Metrics */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-2">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">Total Luas Lahan & Pohon</span>
-              <FiMapPin className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl font-black text-foreground">{totalArea} Ha</div>
-            <p className="text-[11px] text-muted-foreground">
-              {totalTrees} batang pohon pada {farms.length} blok aktif
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-2">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">Mutu Grade 1 (Premium)</span>
-              <FiCheckCircle className="w-4 h-4 text-emerald-600" />
-            </div>
-            <div className="text-2xl font-black text-emerald-600">{grade1Percent}%</div>
-            <p className="text-[11px] text-muted-foreground">
-              {grade1Count} dari {inspections.length} batch lolos standar ekspor Specialty
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-2">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">Proyeksi Panen Mendatang</span>
-              <FiTrendingUp className="w-4 h-4 text-amber-600" />
-            </div>
-            <div className="text-2xl font-black text-foreground">
-              {totalPredictedYield.toLocaleString()} kg
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Estimasi berbasis regresi parameter iklim
-            </p>
-          </div>
-
-          <div className="p-5 rounded-2xl border border-border bg-card shadow-sm space-y-2">
-            <div className="flex items-center justify-between text-muted-foreground">
-              <span className="text-xs font-semibold">Kebutuhan Karung Goni</span>
-              <FiLayers className="w-4 h-4 text-purple-600" />
-            </div>
-            <div className="text-2xl font-black text-purple-600">{totalSacks} Karung</div>
-            <p className="text-[11px] text-muted-foreground">
-              Standar 60 kg/karung kapasitas gudang
-            </p>
-          </div>
-        </div>
-
-        {/* Grid Tengah: Visualisasi Kurva Tren & Kartu Kebun Aktif */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Kolom Kiri: Kurva Tren Panen Regresi (2 Kolom) */}
-          <div className="lg:col-span-2 p-6 rounded-2xl border border-border bg-card shadow-sm space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-border">
-              <div>
-                <h3 className="font-bold text-base text-foreground">
-                  Tren Produksi Historis vs Proyeksi Regresi Linear
-                </h3>
-                <p className="text-xs text-muted-foreground">
-                  Perbandingan data panen aktual (kg) dan proyeksi saintifik berbasis suhu/curah hujan
-                </p>
+            {/* Quick Farm Metric Pill on Greeting */}
+            <div className="flex items-center gap-3 pt-2 md:pt-0">
+              <div className="bg-black/20 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-center">
+                <p className="text-[10px] text-emerald-200 uppercase font-semibold">Total Area</p>
+                <p className="text-sm font-extrabold">{totalArea} Ha</p>
               </div>
-              <span className="text-xs font-semibold text-emerald-600 bg-emerald-500/10 px-2.5 py-1 rounded-full self-start">
-                R² = 0.842
+              <div className="bg-black/20 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-center">
+                <p className="text-[10px] text-emerald-200 uppercase font-semibold">Pohon Kopi</p>
+                <p className="text-sm font-extrabold">{totalTrees}</p>
+              </div>
+              <div className="bg-black/20 backdrop-blur-md px-3.5 py-2 rounded-2xl border border-white/10 text-center">
+                <p className="text-[10px] text-emerald-200 uppercase font-semibold">Target Panen</p>
+                <p className="text-sm font-extrabold">{(totalPredictedYield / 1000).toFixed(1)} Ton</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Action Cards (Matches Figma Prominent Scanner & Estimasi Buttons) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          {/* Card 1: Scanner Kualitas AI */}
+          <Link
+            href="/inspeksi"
+            className="group relative overflow-hidden p-5 rounded-3xl border border-emerald-500/30 bg-gradient-to-br from-emerald-500/10 via-card to-card hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-500/10 transition-all flex items-center justify-between"
+          >
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+                <FiCpu className="w-3.5 h-3.5" /> Modul Visi Komputer CNN
+              </span>
+              <h3 className="text-base font-extrabold text-foreground group-hover:text-emerald-600 transition">
+                Scanner Pemeriksaan Kualitas
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Unggah atau ambil foto sampel biji kopi untuk deteksi cacat fisik otomatis & penentuan grade SNI.
+              </p>
+              <div className="pt-2 inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                <span>Buka Scanner Kamera</span>
+                <FiArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-emerald-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-emerald-600/30 shrink-0 ml-4 group-hover:scale-110 transition">
+              <FiCamera />
+            </div>
+          </Link>
+
+          {/* Card 2: Estimasi Panen AI */}
+          <Link
+            href="/estimasi"
+            className="group relative overflow-hidden p-5 rounded-3xl border border-amber-500/30 bg-gradient-to-br from-amber-500/10 via-card to-card hover:border-amber-500 hover:shadow-lg hover:shadow-amber-500/10 transition-all flex items-center justify-between"
+          >
+            <div className="space-y-1">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
+                <FiActivity className="w-3.5 h-3.5" /> Modul Regresi Linear
+              </span>
+              <h3 className="text-base font-extrabold text-foreground group-hover:text-amber-600 transition">
+                Estimasi Produksi & Panen
+              </h3>
+              <p className="text-xs text-muted-foreground">
+                Kalkulasi proyeksi tonase panen buah ceri kopi berbasis variabel agroklimat & kebutuhan logistik.
+              </p>
+              <div className="pt-2 inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 dark:text-amber-400">
+                <span>Hitung Estimasi Panen</span>
+                <FiArrowRight className="w-3.5 h-3.5 group-hover:translate-x-1 transition" />
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-2xl bg-amber-600 text-white flex items-center justify-center text-2xl shadow-lg shadow-amber-600/30 shrink-0 ml-4 group-hover:scale-110 transition">
+              <FiTrendingUp />
+            </div>
+          </Link>
+        </div>
+
+        {/* ========================================================================= */}
+        {/* DUA BAGIAN UTAMA: HASIL CNN & HASIL LINEAR REGRESSION */}
+        {/* ========================================================================= */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* ----------------------------------------------------------------------- */}
+          {/* BAGIAN A: HASIL CNN (KLASIFIKASI KUALITAS BIJI KOPI) */}
+          {/* ----------------------------------------------------------------------- */}
+          <div className="p-5 sm:p-6 rounded-3xl border border-border bg-card shadow-sm space-y-5">
+            <div className="flex items-center justify-between pb-3 border-b border-border">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <FiCamera className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-foreground">
+                    A. HASIL CNN — Kualitas Biji Kopi
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Analisis morfologi citra pascapanen standar SNI 01-2907-2008 & SCA
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                {latestInspection.assignedGrade}
               </span>
             </div>
 
-            {/* Simulasi Grafik Visualisasi Interaktif */}
-            <div className="py-4">
-              <div className="h-60 w-full flex items-end gap-3 sm:gap-6 pt-6 pb-2 px-2 border-b border-border">
-                {/* Visual Bar / Chart Point */}
-                {[
-                  { label: "Mei 24", val: 9400, type: "riil" },
-                  { label: "Jun 24", val: 10200, type: "riil" },
-                  { label: "Jul 24", val: 11500, type: "riil" },
-                  { label: "Mei 25", val: 9800, type: "riil" },
-                  { label: "Jun 25", val: 10600, type: "riil" },
-                  { label: "Jul 25", val: 11900, type: "riil" },
-                  { label: "Jun 26 (P)", val: 11850, type: "prediksi" },
-                  { label: "Jul 26 (P)", val: 16900, type: "prediksi" },
-                ].map((item, idx) => {
-                  const maxVal = 18000;
-                  const heightPercent = Math.round((item.val / maxVal) * 100);
-                  const isPred = item.type === "prediksi";
-
-                  return (
-                    <div key={idx} className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end group">
-                      <span className="text-[10px] font-semibold text-muted-foreground opacity-0 group-hover:opacity-100 transition">
-                        {(item.val / 1000).toFixed(1)}t
-                      </span>
-                      <div
-                        style={{ height: `${heightPercent}%` }}
-                        className={`w-full max-w-[36px] rounded-t-lg transition-all ${
-                          isPred
-                            ? "bg-amber-500/80 border-2 border-dashed border-amber-600 shadow-sm"
-                            : "bg-emerald-600 hover:bg-emerald-700 shadow-sm"
-                        }`}
-                      />
-                      <span className="text-[10px] text-muted-foreground text-center truncate max-w-[45px]">
-                        {item.label}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="flex items-center justify-center gap-6 mt-4 text-xs font-medium text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-emerald-600" />
-                  <span>Panen Riil (Historis)</span>
+            {/* Circular Gauge & Top Stats */}
+            <div className="grid grid-cols-1 sm:grid-cols-12 gap-4 items-center">
+              {/* Circular Gauge Visual */}
+              <div className="sm:col-span-5 flex flex-col items-center justify-center p-3">
+                <div className="relative w-32 h-32 flex items-center justify-center">
+                  <svg className="w-full h-full transform -rotate-90" viewBox="0 0 100 100">
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      className="text-muted/40 stroke-current"
+                      strokeWidth="10"
+                      fill="transparent"
+                    />
+                    <circle
+                      cx="50"
+                      cy="50"
+                      r="40"
+                      className="text-emerald-600 stroke-current transition-all duration-1000 ease-out"
+                      strokeWidth="10"
+                      strokeDasharray={251.2}
+                      strokeDashoffset={251.2 * (1 - overallQualityPercent / 100)}
+                      strokeLinecap="round"
+                      fill="transparent"
+                    />
+                  </svg>
+                  <div className="absolute flex flex-col items-center justify-center text-center">
+                    <span className="text-2xl font-black text-foreground">{overallQualityPercent}%</span>
+                    <span className="text-[10px] font-semibold text-muted-foreground">Kualitas Baik</span>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="w-3 h-3 rounded bg-amber-500 border border-dashed border-amber-600" />
-                  <span>Estimasi AI (Regresi Linear)</span>
+                <p className="text-[11px] text-muted-foreground mt-2 text-center font-medium">
+                  Confidence Score: <strong className="text-foreground">{(latestInspection.confidenceScore * 100).toFixed(1)}%</strong>
+                </p>
+              </div>
+
+              {/* 3 Metrics Counter */}
+              <div className="sm:col-span-7 space-y-2.5">
+                <div className="p-3 rounded-2xl bg-muted/40 border border-border flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground">Total Biji Diperiksa</span>
+                  <span className="text-sm font-extrabold text-foreground">{totalBeansChecked} Butir</span>
+                </div>
+                <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 flex items-center gap-1.5">
+                    <FiCheckCircle className="w-3.5 h-3.5 text-emerald-600" /> Biji Normal Utuh
+                  </span>
+                  <span className="text-sm font-extrabold text-emerald-700 dark:text-emerald-400">
+                    {totalNormalBeans} Butir ({overallQualityPercent}%)
+                  </span>
+                </div>
+                <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/20 flex items-center justify-between">
+                  <span className="text-xs font-semibold text-rose-800 dark:text-rose-300 flex items-center gap-1.5">
+                    <FiAlertTriangle className="w-3.5 h-3.5 text-rose-600" /> Total Biji Cacat (Defect)
+                  </span>
+                  <span className="text-sm font-extrabold text-rose-700 dark:text-rose-400">
+                    {totalDefectBeans} Butir ({100 - overallQualityPercent}%)
+                  </span>
                 </div>
               </div>
             </div>
+
+            {/* Defect Distribution Progress Bars */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <p className="text-xs font-bold text-foreground">Sebaran Klasifikasi Jenis Cacat (Defect):</p>
+              <div className="space-y-1.5 text-xs">
+                <div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                    <span>Biji Hitam / Busuk (Black Sour)</span>
+                    <span className="font-semibold text-foreground">{latestInspection.defectBreakdown.blackSour}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-rose-500 rounded-full" style={{ width: `${latestInspection.defectBreakdown.blackSour * 5}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                    <span>Kerusakan Serangga Bubuk (PBKo)</span>
+                    <span className="font-semibold text-foreground">{latestInspection.defectBreakdown.insectDamage}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-amber-500 rounded-full" style={{ width: `${latestInspection.defectBreakdown.insectDamage * 5}%` }} />
+                  </div>
+                </div>
+                <div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground mb-1">
+                    <span>Biji Pecah Mekanis (Broken Beans)</span>
+                    <span className="font-semibold text-foreground">{latestInspection.defectBreakdown.brokenBeans}%</span>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-muted overflow-hidden">
+                    <div className="h-full bg-orange-400 rounded-full" style={{ width: `${latestInspection.defectBreakdown.brokenBeans * 5}%` }} />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Recommendation & Action Button */}
+            <div className="p-3.5 rounded-2xl bg-muted/50 border border-border space-y-1.5">
+              <p className="text-[11px] font-bold text-foreground uppercase tracking-wider">Rekomendasi Sortasi Fisik:</p>
+              <p className="text-xs text-muted-foreground leading-relaxed">{latestInspection.recommendation}</p>
+            </div>
+
+            <Link
+              href="/inspeksi"
+              className="w-full py-2.5 rounded-2xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition"
+            >
+              <span>Buka Visualisasi Deteksi & Bounding Box</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </Link>
           </div>
 
-          {/* Kolom Kanan: Jadwal Kegiatan & Pemeliharaan Terdekat (1 Kolom) */}
-          <div className="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-4">
+          {/* ----------------------------------------------------------------------- */}
+          {/* BAGIAN B: HASIL LINEAR REGRESSION (ESTIMASI PRODUKSI KOPI) */}
+          {/* ----------------------------------------------------------------------- */}
+          <div className="p-5 sm:p-6 rounded-3xl border border-border bg-card shadow-sm space-y-5">
             <div className="flex items-center justify-between pb-3 border-b border-border">
-              <h3 className="font-bold text-base text-foreground">Agenda Perkebunan</h3>
-              <Link href="/kalender" className="text-xs font-semibold text-emerald-600 hover:underline">
-                Lihat Kalender
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <FiTrendingUp className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="text-sm sm:text-base font-extrabold text-foreground">
+                    B. HASIL LINEAR REGRESSION — Estimasi Panen
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground">
+                    Metode Regresi Linear berdasarkan data perkebunan dan cuaca
+                  </p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 rounded-full text-[10px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400 border border-amber-500/20">
+                Target: {latestEstimate.targetMonth === 6 ? "Juni" : "Juli"} {latestEstimate.targetYear}
+              </span>
+            </div>
+
+            {/* Big Hero Metric Card */}
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent border border-amber-500/20 space-y-2">
+              <div className="flex items-baseline justify-between">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+                    Proyeksi Volume Panen ({latestEstimate.farmName})
+                  </p>
+                  <p className="text-3xl sm:text-4xl font-black text-foreground tracking-tight mt-0.5">
+                    {latestEstimate.predictedYieldKg.toLocaleString()}{" "}
+                    <span className="text-lg font-bold text-amber-600">kg</span>
+                    <span className="text-xs font-semibold text-muted-foreground ml-2">
+                      ({(latestEstimate.predictedYieldKg / 1000).toFixed(2)} Ton)
+                    </span>
+                  </p>
+                </div>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rentang Interval Kepercayaan (95% CI):{" "}
+                <strong className="text-foreground">
+                  {latestEstimate.lowerBoundKg.toLocaleString()} kg – {latestEstimate.upperBoundKg.toLocaleString()} kg
+                </strong>
+              </p>
+            </div>
+
+            {/* Logistic & Manpower Needs */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="p-3 rounded-2xl bg-muted/40 border border-border flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-amber-500/10 text-amber-600 shrink-0">
+                  <FiPackage className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-semibold">Kebutuhan Karung (60kg)</p>
+                  <p className="text-sm font-extrabold text-foreground">{latestEstimate.requiredSacks60kg} Karung</p>
+                </div>
+              </div>
+
+              <div className="p-3 rounded-2xl bg-muted/40 border border-border flex items-center gap-3">
+                <div className="p-2.5 rounded-xl bg-emerald-500/10 text-emerald-600 shrink-0">
+                  <FiUsers className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground font-semibold">Tenaga Kerja Pemetik</p>
+                  <p className="text-sm font-extrabold text-foreground">{latestEstimate.estimatedLaborers} Orang</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Production Growth Visual Trend (Interactive SVG Chart) */}
+            <div className="space-y-2 pt-2 border-t border-border">
+              <div className="flex items-center justify-between text-xs">
+                <p className="font-bold text-foreground">Grafik Perkembangan Produksi Historis vs Estimasi:</p>
+                <span className="text-[10px] text-muted-foreground">Panen 2024 s/d 2026</span>
+              </div>
+
+              {/* Simplified SVG Chart */}
+              <div className="p-3 rounded-2xl bg-muted/30 border border-border/80 space-y-2">
+                <div className="h-28 w-full flex items-end justify-between gap-3 pt-4 px-2">
+                  <div className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                    <span className="text-[10px] font-bold text-muted-foreground">9.4 Ton</span>
+                    <div className="w-full bg-slate-300 dark:bg-slate-700 rounded-t-lg transition-all" style={{ height: "65%" }} />
+                    <span className="text-[10px] text-muted-foreground">Mei 2024</span>
+                  </div>
+
+                  <div className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                    <span className="text-[10px] font-bold text-muted-foreground">10.6 Ton</span>
+                    <div className="w-full bg-slate-400 dark:bg-slate-600 rounded-t-lg transition-all" style={{ height: "76%" }} />
+                    <span className="text-[10px] text-muted-foreground">Juni 2025</span>
+                  </div>
+
+                  <div className="flex-1 flex flex-col items-center gap-1.5 h-full justify-end">
+                    <span className="text-[10px] font-extrabold text-amber-600">11.85 Ton</span>
+                    <div className="w-full bg-gradient-to-t from-amber-600 to-amber-400 rounded-t-lg transition-all ring-2 ring-amber-500/30" style={{ height: "88%" }} />
+                    <span className="text-[10px] font-bold text-amber-700 dark:text-amber-400">Juni 2026 (Prediksi)</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <Link
+              href="/estimasi"
+              className="w-full py-2.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-700 dark:text-amber-300 font-bold text-xs flex items-center justify-center gap-2 transition"
+            >
+              <span>Jalankan Simulasi Parameter Panen Baru</span>
+              <FiArrowRight className="w-3.5 h-3.5" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Bottom Section: Recent Inspections & Harvest Agenda */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Recent Inspection Activity (2 Cols) */}
+          <div className="lg:col-span-2 p-5 rounded-3xl border border-border bg-card space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <FiClock className="w-4 h-4 text-emerald-600" />
+                <h3 className="text-sm font-bold text-foreground">Aktivitas Pemeriksaan Kualitas Terakhir</h3>
+              </div>
+              <Link href="/riwayat" className="text-xs text-emerald-600 font-semibold hover:underline">
+                Lihat Semua
               </Link>
             </div>
-            <div className="space-y-3">
-              {events.map((ev) => (
-                <div key={ev.id} className="p-3 rounded-xl border border-border bg-muted/40 space-y-1">
-                  <div className="flex items-center justify-between text-xs font-bold text-foreground">
-                    <span>{ev.title}</span>
-                    <span className="text-[10px] text-emerald-600 bg-emerald-500/10 px-2 py-0.5 rounded">
-                      {ev.date}
-                    </span>
+
+            <div className="divide-y divide-border/60">
+              {inspections.slice(0, 3).map((item) => (
+                <div key={item.id} className="py-3 flex items-center justify-between gap-3 text-xs">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-600 flex items-center justify-center shrink-0">
+                      <FiCamera className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <p className="font-bold text-foreground">{item.batchCode}</p>
+                      <p className="text-[11px] text-muted-foreground">{item.farmName} • {item.inspectionDate}</p>
+                    </div>
                   </div>
-                  <p className="text-xs text-muted-foreground">{ev.farmName}</p>
-                  <span className="inline-block text-[10px] font-semibold text-muted-foreground">
-                    Tipe: {ev.type}
-                  </span>
+                  <div className="text-right">
+                    <span className="inline-block px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
+                      {item.assignedGrade}
+                    </span>
+                    <p className="text-[10px] text-muted-foreground mt-0.5">Defect: {item.overallDefectRate}%</p>
+                  </div>
                 </div>
               ))}
             </div>
           </div>
-        </div>
 
-        {/* Tabel Ringkas Inspeksi Kualitas Terkini */}
-        <div className="p-6 rounded-2xl border border-border bg-card shadow-sm space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-border">
-            <div>
-              <h3 className="font-bold text-base text-foreground">
-                Hasil Inspeksi Mutu Biji Kopi Terkini (Model CNN)
-              </h3>
-              <p className="text-xs text-muted-foreground">
-                Klasifikasi persentase cacat fisik biji kopi mentah (green beans 224x224)
-              </p>
+          {/* Harvest Schedule / Events (1 Col) */}
+          <div className="p-5 rounded-3xl border border-border bg-card space-y-4">
+            <div className="flex items-center justify-between pb-2 border-b border-border">
+              <div className="flex items-center gap-2">
+                <FiCalendar className="w-4 h-4 text-amber-600" />
+                <h3 className="text-sm font-bold text-foreground">Jadwal Panen & Agenda</h3>
+              </div>
+              <Link href="/kalender" className="text-xs text-amber-600 font-semibold hover:underline">
+                Kalender
+              </Link>
             </div>
-            <Link href="/riwayat" className="text-xs font-semibold text-emerald-600 hover:underline">
-              Lihat Seluruh Riwayat
-            </Link>
-          </div>
 
-          <div className="overflow-x-auto">
-            <table className="w-full text-left text-xs">
-              <thead className="bg-muted text-muted-foreground uppercase text-[10px] font-bold">
-                <tr>
-                  <th className="py-2.5 px-3 rounded-l-lg">Kode Batch</th>
-                  <th className="py-2.5 px-3">Blok Kebun</th>
-                  <th className="py-2.5 px-3">Grade Mutu</th>
-                  <th className="py-2.5 px-3">Defect Rate</th>
-                  <th className="py-2.5 px-3">Confidence Score</th>
-                  <th className="py-2.5 px-3">Tanggal</th>
-                  <th className="py-2.5 px-3 rounded-r-lg">Aksi</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {inspections.map((insp) => (
-                  <tr key={insp.id} className="hover:bg-muted/50 transition">
-                    <td className="py-3 px-3 font-semibold text-foreground">{insp.batchCode}</td>
-                    <td className="py-3 px-3 text-muted-foreground">{insp.farmName}</td>
-                    <td className="py-3 px-3">
-                      <span
-                        className={`px-2 py-0.5 rounded-full font-bold text-[10px] ${
-                          insp.assignedGrade.includes("Grade 1")
-                            ? "bg-emerald-500/10 text-emerald-600 border border-emerald-500/30"
-                            : "bg-amber-500/10 text-amber-600 border border-amber-500/30"
-                        }`}
-                      >
-                        {insp.assignedGrade}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-semibold text-foreground">
-                      {insp.overallDefectRate}%
-                    </td>
-                    <td className="py-3 px-3 text-muted-foreground">
-                      {(insp.confidenceScore * 100).toFixed(1)}%
-                    </td>
-                    <td className="py-3 px-3 text-muted-foreground">{insp.inspectionDate}</td>
-                    <td className="py-3 px-3">
-                      <Link
-                        href="/riwayat"
-                        className="text-emerald-600 hover:underline font-semibold"
-                      >
-                        Detail
-                      </Link>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="space-y-2.5">
+              {events.slice(0, 3).map((ev) => (
+                <div key={ev.id} className="p-3 rounded-2xl bg-muted/40 border border-border space-y-1 text-xs">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-foreground line-clamp-1">{ev.title}</span>
+                    <span className="text-[10px] font-bold text-emerald-600 shrink-0">{ev.status}</span>
+                  </div>
+                  <p className="text-[11px] text-muted-foreground flex items-center gap-1.5">
+                    <FiCalendar className="w-3 h-3" />
+                    <span>{ev.date}</span> • <span>{ev.farmName}</span>
+                  </p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>

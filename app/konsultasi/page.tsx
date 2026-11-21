@@ -9,9 +9,7 @@ import {
 import {
   FiMessageSquare,
   FiSend,
-  FiCheckCircle,
   FiClock,
-  FiUser,
   FiShield,
 } from "react-icons/fi";
 
@@ -149,7 +147,7 @@ export default function KonsultasiPage() {
                   </div>
 
                   <p className="text-xs text-foreground/90 bg-muted/30 p-3 rounded-xl leading-relaxed">
-                    "{c.message}"
+                    &ldquo;{c.message}&rdquo;
                   </p>
 
                   {c.reply ? (

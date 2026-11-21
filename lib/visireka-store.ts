@@ -1,7 +1,31 @@
 // lib/visireka-store.ts
 // Penyimpanan Data Terintegrasi, Simulasi Model AI (CNN & Regresi), dan Utilitas VISIREKA
+// Mengacu pada Standar Mutu SNI 01-2907-2008 & SCA Protocols
 
 export type UserRole = "qc_inspector" | "farm_admin" | "management" | "super_admin";
+
+export type BeanDefectType =
+  | "Normal"
+  | "Biji Hitam"
+  | "Biji Pecah"
+  | "Kerusakan Serangga"
+  | "Biji Belum Matang"
+  | "Biji Belum Matang / Jamur";
+
+export interface DetectedBeanObject {
+  id: string; // e.g. "obj-01"
+  labelNumber: number; // 1, 2, 3...
+  category: "Normal" | "Cacat";
+  defectType: BeanDefectType;
+  confidence: number; // 0.85 - 0.99
+  // Bounding box dalam persentase kontainer gambar (0 - 100%)
+  x: number; // percentage left
+  y: number; // percentage top
+  width: number; // percentage width
+  height: number; // percentage height
+  description: string;
+  recommendation: string;
+}
 
 export interface Farm {
   id: string;
@@ -33,9 +57,13 @@ export interface QualityInspection {
   assignedGrade: "Grade 1 (Premium)" | "Grade 2 (Standar)" | "Grade 3 (Komersial)" | "Reject";
   confidenceScore: number; // 0.0 - 1.0
   overallDefectRate: number; // %
+  totalObjectsCount?: number;
+  normalObjectsCount?: number;
+  defectObjectsCount?: number;
   defectBreakdown: DefectBreakdown;
   recommendation: string;
   imageUrl?: string;
+  detectedObjects?: DetectedBeanObject[];
 }
 
 export interface HistoricalAgroclymate {
@@ -86,6 +114,7 @@ export interface Article {
   summary: string;
   content: string;
   date: string;
+  imageUrl?: string;
 }
 
 export interface Consultation {
@@ -110,7 +139,163 @@ export interface ActivityLog {
 }
 
 // -----------------------------------------------------------------------------
-// SEED DATA AWAL (BERKUALITAS AKADEMIK)
+// HELPER PEMBENTUKAN OBJEK DETEKSI DENGAN KOORDINAT SPASIAL
+// Disesuaikan secara presisi dengan posisi biji pada citra coffee-beans-sample.jpg (896x432 px)
+// -----------------------------------------------------------------------------
+
+export const COFFEE_BEAN_ANCHORS = [
+  // Baris Atas (y: 11% - 15%)
+  { x: 6.8, y: 11.5, w: 7.2, h: 14.5 },
+  { x: 16.5, y: 13.5, w: 7.0, h: 15.0 },
+  { x: 26.5, y: 11.0, w: 7.2, h: 14.0 },
+  { x: 36.5, y: 13.0, w: 7.0, h: 14.5 },
+  { x: 46.5, y: 11.5, w: 7.2, h: 14.2 },
+  { x: 57.0, y: 14.0, w: 7.0, h: 14.5 },
+  { x: 67.0, y: 11.5, w: 7.2, h: 14.0 },
+  { x: 77.0, y: 13.0, w: 7.0, h: 14.5 },
+  { x: 86.5, y: 11.5, w: 7.0, h: 14.0 },
+
+  // Baris Tengah (y: 39% - 44%)
+  { x: 5.5, y: 40.5, w: 7.2, h: 14.5 },
+  { x: 15.0, y: 43.0, w: 7.0, h: 14.0 },
+  { x: 24.8, y: 38.5, w: 7.2, h: 14.5 },
+  { x: 34.8, y: 41.5, w: 7.0, h: 14.0 },
+  { x: 44.8, y: 39.0, w: 7.2, h: 14.5 },
+  { x: 54.8, y: 42.0, w: 7.0, h: 14.0 },
+  { x: 65.0, y: 38.5, w: 7.2, h: 14.5 },
+  { x: 75.0, y: 41.5, w: 7.0, h: 14.0 },
+  { x: 85.0, y: 39.5, w: 7.2, h: 14.5 },
+
+  // Baris Bawah (y: 67% - 73%)
+  { x: 8.0, y: 68.5, w: 7.2, h: 14.5 },
+  { x: 18.0, y: 71.5, w: 7.0, h: 14.0 },
+  { x: 28.0, y: 67.5, w: 7.2, h: 14.5 },
+  { x: 38.5, y: 70.5, w: 7.0, h: 14.0 },
+  { x: 49.0, y: 68.5, w: 7.2, h: 14.5 },
+  { x: 59.5, y: 71.5, w: 7.0, h: 14.0 },
+  { x: 70.0, y: 68.0, w: 7.2, h: 14.5 },
+  { x: 80.5, y: 70.5, w: 7.0, h: 14.0 },
+];
+
+export function createDetectedObjects(
+  count: number = 20,
+  defectRatePercent: number = 5.0,
+  seed: number = 42
+): DetectedBeanObject[] {
+  const objects: DetectedBeanObject[] = [];
+  const maxAvailable = COFFEE_BEAN_ANCHORS.length;
+  const actualCount = Math.min(count, maxAvailable);
+  const targetDefects = Math.max(1, Math.round((actualCount * defectRatePercent) / 100));
+
+  const defectTypesPool: BeanDefectType[] = [
+    "Biji Hitam",
+    "Kerusakan Serangga",
+    "Biji Pecah",
+    "Biji Belum Matang",
+  ];
+
+  // Tentukan indeks objek yang cacat secara deterministik
+  const defectIndices = new Set<number>();
+  for (let i = 0; i < targetDefects; i++) {
+    const idx = (seed * 3 + i * 7) % actualCount;
+    defectIndices.add(idx);
+  }
+
+  for (let i = 0; i < actualCount; i++) {
+    const anchor = COFFEE_BEAN_ANCHORS[i];
+    const isDefect = defectIndices.has(i);
+    const defectType: BeanDefectType = isDefect
+      ? defectTypesPool[(seed + i) % defectTypesPool.length]
+      : "Normal";
+
+    let description = "Biji kopi Arabika utuh dengan bentuk oval simetris dan warna seragam.";
+    let recommendation = "Memenuhi kualifikasi fisik grade specialty, teruskan ke proses penimbangan.";
+
+    if (defectType === "Biji Hitam") {
+      description =
+        "Cacat primer: Biji mengalami nekrosis atau pembusukan jaringan dengan warna hitam pekat.";
+      recommendation = "Pisahkan secara manual dari meja sortasi agar tidak mencemari profil aroma sangrai.";
+    } else if (defectType === "Kerusakan Serangga") {
+      description =
+        "Cacat sekunder: Terdapat lubang gerek bekas hama penggerek buah kopi (Hypothenemus hampei).";
+      recommendation = "Lakukan penyingkiran dengan meja gravitasi (density table) dan periksa perangkap kebun.";
+    } else if (defectType === "Biji Pecah") {
+      description =
+        "Cacat sekunder: Biji terbelah atau patah akibat tekanan mekanis mesin pengupas (pulper).";
+      recommendation = "Kalibrasi jarak pisau mesin pulper dan alokasikan biji pecah untuk segmen kopi komersial.";
+    } else if (defectType === "Biji Belum Matang") {
+      description =
+        "Cacat fisik: Biji dipetik sebelum matang fisiologis optimal dengan warna kehijauan pucat.";
+      recommendation = "Pastikan pemetikan hanya buah ceri merah matang dan perbaiki ventilasi lantai jemur.";
+    }
+
+    const confidence = Number((0.92 + ((seed * (i + 3)) % 70) / 1000).toFixed(3));
+
+    objects.push({
+      id: `obj-${String(i + 1).padStart(2, "0")}`,
+      labelNumber: i + 1,
+      category: isDefect ? "Cacat" : "Normal",
+      defectType,
+      confidence,
+      x: anchor.x,
+      y: anchor.y,
+      width: anchor.w,
+      height: anchor.h,
+      description,
+      recommendation,
+    });
+  }
+
+  return objects;
+}
+
+// -----------------------------------------------------------------------------
+// PRESET CONTOH CITRA UNTUK PENGUJIAN CEPAT (TEST SAMPLES)
+// Menggunakan foto asli biji kopi Arabika (bukan screenshot UI)
+// -----------------------------------------------------------------------------
+
+export interface SamplePreset {
+  id: string;
+  name: string;
+  subtitle: string;
+  imageUrl: string;
+  farmId: string;
+  batchCode: string;
+  expectedGrade: string;
+}
+
+export const samplePresets: SamplePreset[] = [
+  {
+    id: "sample-specialty",
+    name: "Sample 01: Lot Specialty Argopuro",
+    subtitle: "Kualitas Grade 1 Premium (Defect < 5%)",
+    imageUrl: "/images/coffee-beans-sample.jpg",
+    farmId: "farm-01",
+    batchCode: "BATCH-2026-AGP-SPEC-01",
+    expectedGrade: "Grade 1 (Premium)",
+  },
+  {
+    id: "sample-standard",
+    name: "Sample 02: Lot Ijen Pasca-Panen",
+    subtitle: "Kualitas Grade 2 Standar (Defect ~ 9.5%)",
+    imageUrl: "/images/coffee-beans-sample-2.jpg",
+    farmId: "farm-02",
+    batchCode: "BATCH-2026-IJN-STD-02",
+    expectedGrade: "Grade 2 (Standar)",
+  },
+  {
+    id: "sample-borer",
+    name: "Sample 03: Lot Uji Kritis Defek Serangga PBKo",
+    subtitle: "Uji Deteksi Biji Berlubang & Cacat Hitam",
+    imageUrl: "/images/coffee-beans-sample-3.jpg",
+    farmId: "farm-03",
+    batchCode: "BATCH-2026-ARJ-TEST-03",
+    expectedGrade: "Grade 3 (Komersial)",
+  },
+];
+
+// -----------------------------------------------------------------------------
+// SEED DATA MASTER
 // -----------------------------------------------------------------------------
 
 export const initialFarms: Farm[] = [
@@ -118,7 +303,7 @@ export const initialFarms: Farm[] = [
     id: "farm-01",
     name: "Perkebunan Argopuro Lestari",
     blockCode: "BLOK-AGP-01",
-    location: "Lereng Gunung Argopuro, Jember (Ketinggian 1.350 mdpl)",
+    location: "Lereng Gunung Argopuro, Jember (1.350 mdpl)",
     elevationMasl: 1350,
     areaHectares: 4.8,
     treeCount: 9600,
@@ -130,7 +315,7 @@ export const initialFarms: Farm[] = [
     id: "farm-02",
     name: "Perkebunan Ijen Specialty",
     blockCode: "BLOK-IJN-02",
-    location: "Kawah Ijen, Bondowoso (Ketinggian 1.480 mdpl)",
+    location: "Kawah Ijen, Bondowoso (1.480 mdpl)",
     elevationMasl: 1480,
     areaHectares: 6.2,
     treeCount: 12400,
@@ -142,7 +327,7 @@ export const initialFarms: Farm[] = [
     id: "farm-03",
     name: "Perkebunan Arjuno Makmur",
     blockCode: "BLOK-ARJ-03",
-    location: "Lereng Gunung Arjuno, Malang (Ketinggian 1.250 mdpl)",
+    location: "Lereng Gunung Arjuno, Malang (1.250 mdpl)",
     elevationMasl: 1250,
     areaHectares: 3.5,
     treeCount: 7000,
@@ -151,6 +336,11 @@ export const initialFarms: Farm[] = [
     status: "Aktif",
   },
 ];
+
+// Inisialisasi data inspeksi dengan objek bounding box nyata
+const sampleObj1 = createDetectedObjects(20, 4.5, 101);
+const sampleObj2 = createDetectedObjects(20, 9.8, 202);
+const sampleObj3 = createDetectedObjects(20, 3.2, 303);
 
 export const initialInspections: QualityInspection[] = [
   {
@@ -163,6 +353,9 @@ export const initialInspections: QualityInspection[] = [
     assignedGrade: "Grade 1 (Premium)",
     confidenceScore: 0.948,
     overallDefectRate: 4.25,
+    totalObjectsCount: 20,
+    normalObjectsCount: 19,
+    defectObjectsCount: 1,
     defectBreakdown: {
       goodBeans: 95.75,
       blackSour: 1.5,
@@ -171,6 +364,8 @@ export const initialInspections: QualityInspection[] = [
     },
     recommendation:
       "Mutu biji memenuhi kualifikasi ekspor Specialty Arabica (SNI Grade 1). Lanjutkan ke tahapan penimbangan dan pengemasan kedap udara (GrainPro).",
+    imageUrl: "/images/coffee-beans-sample.jpg",
+    detectedObjects: sampleObj1,
   },
   {
     id: "insp-02",
@@ -182,6 +377,9 @@ export const initialInspections: QualityInspection[] = [
     assignedGrade: "Grade 2 (Standar)",
     confidenceScore: 0.892,
     overallDefectRate: 9.8,
+    totalObjectsCount: 20,
+    normalObjectsCount: 18,
+    defectObjectsCount: 2,
     defectBreakdown: {
       goodBeans: 90.2,
       blackSour: 3.6,
@@ -190,6 +388,8 @@ export const initialInspections: QualityInspection[] = [
     },
     recommendation:
       "Tingkat cacat berada pada ambang Grade 2. Disarankan melakukan penyortiran ulang meja getar gravitasi (density table) untuk memisahkan biji terserang borer.",
+    imageUrl: "/images/coffee-beans-sample-2.jpg",
+    detectedObjects: sampleObj2,
   },
   {
     id: "insp-03",
@@ -201,6 +401,9 @@ export const initialInspections: QualityInspection[] = [
     assignedGrade: "Grade 1 (Premium)",
     confidenceScore: 0.962,
     overallDefectRate: 3.1,
+    totalObjectsCount: 20,
+    normalObjectsCount: 19,
+    defectObjectsCount: 1,
     defectBreakdown: {
       goodBeans: 96.9,
       blackSour: 0.8,
@@ -209,6 +412,8 @@ export const initialInspections: QualityInspection[] = [
     },
     recommendation:
       "Kualitas fisik biji sangat prima dengan keseragaman warna hijau kebiruan merata. Sangat potensial untuk lot lelang Specialty Coffee.",
+    imageUrl: "/images/coffee-beans-sample-3.jpg",
+    detectedObjects: sampleObj3,
   },
 ];
 
@@ -301,10 +506,11 @@ export const initialArticles: Article[] = [
     category: "Standar Mutu",
     readTime: "5 menit",
     summary:
-      "Panduan komprehensif mengenai penentuan nilai cacat (defect value) sistem 300 gram untuk menembus pasar ekspor Specialty Coffee.",
+      "Panduan komprehensif penentuan nilai cacat (defect value) sistem 300 gram untuk menembus pasar ekspor Specialty Coffee.",
     content:
       "Standar Nasional Indonesia (SNI 01-2907-2008) mengklasifikasikan mutu biji kopi berdasarkan jumlah nilai cacat per 300 gram sampel uji. Biji kopi Grade 1 memiliki total nilai cacat maksimum 11. Cacat primer mencakup biji hitam penuh (nilai 1) dan biji berjamur (nilai 1). Sementara cacat sekunder mencakup biji pecah (5 biji = nilai 1) dan biji berlubang serangga (5 biji = nilai 1). Model CNN VISIREKA dilatih secara khusus untuk mendeteksi kontur mikroskopis dan diskolorisasi ini secara otomatis.",
     date: "12 Nov 2026",
+    imageUrl: "/images/coffee-beans-sample.jpg",
   },
   {
     id: "art-02",
@@ -316,6 +522,7 @@ export const initialArticles: Article[] = [
     content:
       "Kopi Arabika memerlukan periode kering 2-3 bulan untuk memicu diferensiasi kuncup bunga, disusul curah hujan yang cukup (100-200 mm/bulan) untuk pembesaran buah. Suhu ideal berkisar antara 18-22 °C. Pada suhu di atas 25 °C, proses fotosintesis terhambat dan buah matang prematur dengan densitas biji yang rendah. Variabel ini menjadi input fundamental dalam formulasi regresi linear VISIREKA.",
     date: "08 Nov 2026",
+    imageUrl: "/images/plantation.png",
   },
   {
     id: "art-03",
@@ -323,10 +530,11 @@ export const initialArticles: Article[] = [
     category: "Pascapanen",
     readTime: "6 menit",
     summary:
-      "Teknik perendaman (fermentasi anaerob), pencucian, serta penjemuran di atas raised beds untuk menghindari fermentasi asam (sour beans).",
+      "Teknik perendaman (fermentasi anaerob), pencucian, serta penjemuran di atas raised beds untuk menghindari fermentasi asam.",
     content:
       "Cacat Black/Sour beans seringkali disebabkan oleh keterlambatan pengupasan kulit buah (pulping) setelah panen atau penumpukan ceri basah tanpa aerasi. Penggunaan sistem pemantauan kualitas VISIREKA membantu petugas quality control mengenali tren kenaikan cacat sour bean sebelum merusak seluruh lot produksi.",
     date: "01 Nov 2026",
+    imageUrl: "/images/dashboard-preview.png",
   },
 ];
 
@@ -391,91 +599,13 @@ export const initialLogs: ActivityLog[] = [
   },
 ];
 
-// -----------------------------------------------------------------------------
-// ENGINE SISTEM CERDAS VISIREKA (IN-BROWSER SCIENTIFIC INFERENCE)
-// -----------------------------------------------------------------------------
-
-/**
- * Simulasi Model CNN Cerdas
- * Menganalisis file citra yang diunggah secara deterministik berdasarkan konten berkas
- * untuk menghasilkan evaluasi klasifikasi cacat fisik dan grade mutu.
- */
-export function runCNNInspection(file: File, farm: Farm, batchCode: string): Promise<QualityInspection> {
-  return new Promise((resolve) => {
-    // Simulasi waktu komputasi inference model CNN (1.2 detik)
-    setTimeout(() => {
-      // Deterministic pseudo-random seed based on file name & size
-      const seed = (file.size % 100) + file.name.length;
-      
-      // Hitung persentase cacat berbasis profil kebun dan seed
-      let blackSour = Number(((seed * 7) % 35 / 10 + 0.5).toFixed(2));
-      let insect = Number(((seed * 11) % 30 / 10 + 0.4).toFixed(2));
-      let broken = Number(((seed * 13) % 25 / 10 + 0.6).toFixed(2));
-
-      // Jika elevasi kebun sangat tinggi (> 1400 mdpl), tingkat cacat lebih rendah
-      if (farm.elevationMasl > 1400) {
-        blackSour = Number((blackSour * 0.75).toFixed(2));
-        insect = Number((insect * 0.7).toFixed(2));
-      }
-
-      const totalDefect = Number((blackSour + insect + broken).toFixed(2));
-      const goodBeans = Number((100 - totalDefect).toFixed(2));
-
-      // Tentukan Grade berdasarkan standar nilai cacat
-      let assignedGrade: QualityInspection["assignedGrade"] = "Grade 1 (Premium)";
-      let confidenceScore = 0.935 + (seed % 50) / 1000;
-      let recommendation = "";
-
-      if (totalDefect <= 5.0) {
-        assignedGrade = "Grade 1 (Premium)";
-        recommendation =
-          "Kualitas sampel biji kopi sangat prima (Defect < 5%). Memenuhi kualifikasi ekspor Specialty Arabica (SNI Grade 1). Siap dipasarkan dengan harga premium.";
-      } else if (totalDefect <= 10.0) {
-        assignedGrade = "Grade 2 (Standar)";
-        recommendation =
-          "Mutu biji kopi berada pada Grade 2. Disarankan melakukan penyortiran mekanis tambahan dengan meja getar gravitasi untuk menyisihkan biji cacat ringan.";
-      } else if (totalDefect <= 18.0) {
-        assignedGrade = "Grade 3 (Komersial)";
-        recommendation =
-          "Tingkat cacat moderat. Sebaiknya dialokasikan untuk pasar komersial lokal atau dipilah manual lebih intensif sebelum proses sangrai.";
-      } else {
-        assignedGrade = "Reject";
-        confidenceScore = 0.91;
-        recommendation =
-          "Tingkat cacat melebihi ambang toleransi mutu ekspor. Lakukan investigasi pascapanen pada proses fermentasi dan mesin pulper.";
-      }
-
-      const result: QualityInspection = {
-        id: "insp-" + Date.now(),
-        farmId: farm.id,
-        farmName: farm.name,
-        batchCode: batchCode.trim() || `BATCH-${new Date().getFullYear()}-${farm.blockCode.substring(0, 3)}-${Math.floor(Math.random() * 900 + 100)}`,
-        inspectionDate: new Date().toISOString().replace("T", " ").substring(0, 16),
-        inspectorName: "Petugas QC Aktif (VISIREKA)",
-        assignedGrade,
-        confidenceScore: Number(confidenceScore.toFixed(3)),
-        overallDefectRate: totalDefect,
-        defectBreakdown: {
-          goodBeans,
-          blackSour,
-          insectDamage: insect,
-          brokenBeans: broken,
-        },
-        recommendation,
-        imageUrl: URL.createObjectURL(file),
-      };
-
-      resolve(result);
-    }, 1200);
-  });
+// Re-export run functions for backward compatibility
+export async function runCNNInspection(file: File, farm: Farm, batchCode: string): Promise<QualityInspection> {
+  const { predictCoffeeBeansCNN } = await import("./ai-services");
+  const response = await predictCoffeeBeansCNN({ file, farm, batchCode });
+  return response.inspection;
 }
 
-/**
- * Model Regresi Linear Berganda (Multivariate Linear Regression)
- * Formulasi:
- * Y = β0 + β1(Area) + β2(TreeCount) + β3(TreeAge) + β4(Rainfall) + β5(Temp) + β6(PrevYield)
- * Koefisien dikalibrasi berdasarkan literatur perkebunan kopi Arabika (Adejola et al., 2026; Ahmad, 2011).
- */
 export function runRegressionEstimate(params: {
   farm: Farm;
   targetYear: number;
@@ -485,20 +615,14 @@ export function runRegressionEstimate(params: {
   prevYieldKg: number;
 }): HarvestEstimate {
   const { farm, targetYear, targetMonth, rainfallMm, avgTempC, prevYieldKg } = params;
-
-  // Koefisien regresi empiris terkalibrasi
   const beta0 = -1200.0;
-  const betaArea = 650.0; // ha
-  const betaTrees = 0.55; // per batang pohon produktif
-  // Umur pohon: optimal pada 6-10 tahun
+  const betaArea = 650.0;
+  const betaTrees = 0.55;
   const ageFactor = farm.treeAgeYears <= 10 ? farm.treeAgeYears * 120 : (18 - farm.treeAgeYears) * 80;
-  // Curah hujan: ideal 100 - 180 mm
   const rainDev = Math.abs(rainfallMm - 140);
   const rainFactor = 1500 - rainDev * 8.5;
-  // Suhu: ideal 19 - 22 C
   const tempDev = Math.abs(avgTempC - 20.5);
   const tempFactor = 1200 - tempDev * 120;
-  // Pengaruh panen sebelumnya (0.35)
   const prevFactor = prevYieldKg * 0.38;
 
   let predicted =
@@ -510,19 +634,15 @@ export function runRegressionEstimate(params: {
     tempFactor +
     prevFactor;
 
-  // Batas minimum realistis
   if (predicted < farm.areaHectares * 1200) {
     predicted = farm.areaHectares * 1500;
   }
 
   const predictedYieldKg = Math.round(predicted);
-  const margin = Math.round(predictedYieldKg * 0.065); // Margin error +/- 6.5%
+  const margin = Math.round(predictedYieldKg * 0.065);
   const lowerBoundKg = predictedYieldKg - margin;
   const upperBoundKg = predictedYieldKg + margin;
-
-  // Alokasi logistik: 1 karung goni = 60 kg green beans
   const requiredSacks60kg = Math.ceil(predictedYieldKg / 60);
-  // Produktivitas pemetik panen rata-rata 40-50 kg/hari dalam rentang 15 hari siklus petik
   const estimatedLaborers = Math.ceil(predictedYieldKg / (45 * 15));
 
   return {

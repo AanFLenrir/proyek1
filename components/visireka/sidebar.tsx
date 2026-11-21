@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import type { IconType } from "react-icons";
 import {
   FiGrid,
   FiCamera,
@@ -26,7 +27,7 @@ interface SidebarProps {
 interface NavItem {
   href: string;
   label: string;
-  icon: any;
+  icon: IconType;
   badge?: string;
 }
 

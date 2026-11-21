@@ -1,5 +1,6 @@
 export const site = {
-  name: "Starter",
+  name: "VISIREKA",
+  tagline: "Vision & Regression Analytics for Arabica Coffee",
   skipLinkLabel: "Lompat ke konten utama",
   theme: {
     toLight: "Aktifkan mode terang",

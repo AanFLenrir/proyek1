@@ -2,12 +2,8 @@
 
 import { VisirekaAppShell } from "@/components/visireka/app-shell";
 import {
-  FiBarChart2,
   FiCpu,
-  FiCheckCircle,
   FiTrendingUp,
-  FiPieChart,
-  FiActivity,
   FiDownload,
 } from "react-icons/fi";
 

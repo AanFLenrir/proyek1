@@ -14,6 +14,7 @@ interface AppShellProps {
 
 export function VisirekaAppShell({ children, title, subtitle }: AppShellProps) {
   const [currentRole, setCurrentRole] = useState<UserRole>("qc_inspector");
+  const [selectedFarmId, setSelectedFarmId] = useState<string>("farm-01");
 
   return (
     <div className="flex min-h-screen bg-background text-foreground antialiased selection:bg-emerald-500/20 selection:text-emerald-700">
@@ -21,10 +22,16 @@ export function VisirekaAppShell({ children, title, subtitle }: AppShellProps) {
       <VisirekaSidebar currentRole={currentRole} onRoleChange={setCurrentRole} />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 pb-20 lg:pb-8">
-        <VisirekaHeader currentRole={currentRole} title={title} subtitle={subtitle} />
-        
-        <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
+      <div className="flex-1 flex flex-col min-w-0 pb-24 lg:pb-10">
+        <VisirekaHeader
+          currentRole={currentRole}
+          title={title}
+          subtitle={subtitle}
+          selectedFarmId={selectedFarmId}
+          onSelectFarm={setSelectedFarmId}
+        />
+
+        <main className="flex-1 p-3.5 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto animate-in fade-in duration-200">
           {children}
         </main>
       </div>

@@ -4,14 +4,11 @@ import { useState } from "react";
 import { VisirekaAppShell } from "@/components/visireka/app-shell";
 import { initialLogs, ActivityLog } from "@/lib/visireka-store";
 import {
-  FiShield,
-  FiActivity,
   FiServer,
   FiUsers,
   FiDatabase,
   FiCheckCircle,
   FiClock,
-  FiRefreshCw,
 } from "react-icons/fi";
 
 export default function AdminPage() {
@@ -39,7 +36,7 @@ export default function AdminPage() {
             </div>
             <div className="text-2xl font-black text-emerald-600">Online 99.9%</div>
             <p className="text-[11px] text-muted-foreground">
-              CNN Model Latency: ~0.85s • Regresi OLS: ~0.04s
+              CNN Model Latency: ~0.85s • Regresi Linear: ~0.04s
             </p>
           </div>
 
